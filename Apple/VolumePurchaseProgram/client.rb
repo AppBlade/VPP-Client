@@ -25,6 +25,11 @@ module Apple
           faraday.response :multi_json, symbolize_keys: true
         end
 
+        fetch_service_urls url
+        compare_or_set_client_config client_guid, client_host
+      end
+
+      def fetch_service_urls(url)
         # TODO cache these results & bust the cache on url moved error (9617)
         response = @server_connection.get URI.join(url, 'VPPServiceConfigSrv')
         response.body.each do |key, value|
@@ -32,7 +37,9 @@ module Apple
             SERVICE_URLS[match[:service_name].to_sym] = value
           end
         end
+      end
 
+      def compare_or_set_client_config(client_guid, client_host)
         client_config = request(:clientConfig)
 
         # Check the client context, if it's empty set it claiming this VPP instance
@@ -68,7 +75,7 @@ module Apple
         end
       end
 
-      def batched_request(service, since_modified_token:, **params)
+      def paged_request(service, since_modified_token:, **params)
         first_response = request(service, in_parallel: true, sinceModifiedToken: since_modified_token)
         remaining_requests = first_response.body[:totalBatchCount] - 1
         batch_token = first_response.body[:batchToken]
@@ -91,11 +98,11 @@ module Apple
       end
 
       def get_users(since_modified_token: nil)
-        batched_request :getUsers, since_modified_token: since_modified_token, includeRetired: 1
+        paged_request :getUsers, since_modified_token: since_modified_token, includeRetired: 1
       end
 
       def get_licenses(since_modified_token: nil)
-        batched_request :getLicenses, since_modified_token: since_modified_token
+        paged_request :getLicenses, since_modified_token: since_modified_token
       end
     end
   end
